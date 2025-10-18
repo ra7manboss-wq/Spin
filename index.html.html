@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spin & Win</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useRef, useEffect } = React;
+    const Gift = () => <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 12 20 22 4 22 4 12"></polyline><rect x="2" y="7" width="20" height="5"></rect><line x1="12" y1="22" x2="12" y2="7"></line><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path></svg>;
+    const Send = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>;
+    const RotateCw = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-spin"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>;
+
+    const SpinWheel = () => {
+      const [name, setName] = useState('');
+      const [hasStarted, setHasStarted] = useState(false);
+      const [isSpinning, setIsSpinning] = useState(false);
+      const [result, setResult] = useState(null);
+      const [rotation, setRotation] = useState(0);
+      const [hasSpun, setHasSpun] = useState(false);
+      const canvasRef = useRef(null);
+      
+      const prizes = [
+        { text: '50% OFF', color: '#FF6B6B', value: '50% OFF' },
+        { text: '30% OFF', color: '#4ECDC4', value: '30% OFF' },
+        { text: '20% OFF', color: '#FFE66D', value: '20% OFF' },
+        { text: '15% OFF', color: '#95E1D3', value: '15% OFF' },
+        { text: '10% OFF', color: '#F38181', value: '10% OFF' },
+        { text: 'Free Shipping', color: '#AA96DA', value: 'Free Shipping' },
+        { text: '$5 OFF', color: '#FCBAD3', value: '$5 OFF' },
+        { text: 'Try Again', color: '#A8E6CF', value: 'Try Again' }
+      ];
+
+      const generateCoupon = () => {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        let coupon = '';
+        for (let i = 0; i < 8; i++) {
+          coupon += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return coupon;
+      };
+
+      const drawWheel = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        
+        const ctx = canvas.getContext('2d');
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const radius = Math.min(centerX, centerY) - 10;
+        
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate((rotation * Math.PI) / 180);
+        
+        const anglePerSlice = (2 * Math.PI) / prizes.length;
+        
+        prizes.forEach((prize, i) => {
+          const startAngle = i * anglePerSlice;
+          const endAngle = startAngle + anglePerSlice;
+          
+          ctx.beginPath();
+          ctx.fillStyle = prize.color;
+          ctx.moveTo(0, 0);
+          ctx.arc(0, 0, radius, startAngle, endAngle);
+          ctx.lineTo(0, 0);
+          ctx.fill();
+          
+          ctx.save();
+          ctx.rotate(startAngle + anglePerSlice / 2);
+          ctx.textAlign = 'center';
+          ctx.fillStyle = '#000';
+          ctx.font = 'bold 16px Arial';
+          ctx.fillText(prize.text, radius * 0.65, 5);
+          ctx.restore();
+          
+          ctx.beginPath();
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 2;
+          ctx.moveTo(0, 0);
+          ctx.lineTo(Math.cos(startAngle) * radius, Math.sin(startAngle) * radius);
+          ctx.stroke();
+        });
+        
+        ctx.restore();
+        
+        ctx.beginPath();
+        ctx.fillStyle = '#fff';
+        ctx.arc(centerX, centerY, 20, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      };
+
+      useEffect(() => {
+        drawWheel();
+      }, [rotation]);
+
+      const sendToGoogleSheets = async (name, prize, coupon) => {
+        try {
+          await fetch('https://script.google.com/macros/s/AKfycbzh3RUD98akwWDR5W-Ayn4GulePCNxpsar7gMdRRrkdofOCXYg2-R-y8_M1shNeZjKrXQ/exec', {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              name: name,
+              prize: prize,
+              coupon: coupon,
+              timestamp: new Date().toISOString()
+            })
+          });
+        } catch (error) {
+          console.error('Error:', error);
+        }
+      };
+
+      const spinWheel = () => {
+        if (isSpinning || hasSpun) return;
+        
+        setIsSpinning(true);
+        const spins = 5 + Math.random() * 5;
+        const extraDegrees = Math.random() * 360;
+        const totalRotation = spins * 360 + extraDegrees;
+        
+        let currentRotation = 0;
+        const duration = 4000;
+        const startTime = Date.now();
+        
+        const animate = () => {
+          const now = Date.now();
+          const elapsed = now - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+          
+          const easeOut = 1 - Math.pow(1 - progress, 3);
+          currentRotation = totalRotation * easeOut;
+          setRotation(currentRotation);
+          
+          if (progress < 1) {
+            requestAnimationFrame(animate);
+          } else {
+            const finalRotation = currentRotation % 360;
+            const anglePerSlice = 360 / prizes.length;
+            const adjustedAngle = (360 - finalRotation + 90) % 360;
+            const winningIndex = Math.floor(adjustedAngle / anglePerSlice) % prizes.length;
+            const prize = prizes[winningIndex];
+            const coupon = generateCoupon();
+            
+            setResult({ prize: prize.value, coupon });
+            setIsSpinning(false);
+            setHasSpun(true);
+            
+            sendToGoogleSheets(name, prize.value, coupon);
+          }
+        };
+        
+        animate();
+      };
+
+      const sendWhatsApp = () => {
+        const message = `🎉 Congratulations ${name}!\n\nYou won: ${result.prize}\nYour Coupon Code: ${result.coupon}\n\nUse this code at checkout!`;
+        const whatsappUrl = `https://api.whatsapp.com/send?phone=9647503240451&text=${encodeURIComponent(message)}`;
+        window.open(whatsappUrl, '_blank');
+      };
+
+      const handleStart = () => {
+        if (name.trim()) {
+          setHasStarted(true);
+        }
+      };
+
+      if (!hasStarted) {
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-red-500 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full">
+              <div className="text-center mb-8">
+                <div className="flex justify-center mb-4"><Gift /></div>
+                <h1 className="text-4xl font-bold text-gray-800 mb-2">Spin & Win!</h1>
+                <p className="text-gray-600">Enter your name to try your luck</p>
+              </div>
+              
+              <div>
+                <input
+                  type="text"
+                  placeholder="Enter your name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleStart()}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg mb-4 text-lg focus:outline-none focus:border-pink-500"
+                />
+                <button
+                  onClick={handleStart}
+                  className="w-full bg-gradient-to-r from-pink-500 to-purple-600 text-white py-3 rounded-lg font-bold text-lg hover:from-pink-600 hover:to-purple-700 transition-all transform hover:scale-105"
+                >
+                  Start Playing
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-red-500 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-2xl w-full">
+            <div className="text-center mb-6">
+              <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome, {name}! 🎉</h1>
+              <p className="text-gray-600">You have ONE chance to spin and win!</p>
+            </div>
+
+            <div className="relative flex justify-center items-center mb-8">
+              <div className="relative">
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-4 z-10">
+                  <div style={{width: 0, height: 0, borderLeft: '15px solid transparent', borderRight: '15px solid transparent', borderTop: '30px solid #ef4444'}}></div>
+                </div>
+                
+                <canvas
+                  ref={canvasRef}
+                  width={400}
+                  height={400}
+                  className="max-w-full"
+                />
+              </div>
+            </div>
+
+            {!result && (
+              <button
+                onClick={spinWheel}
+                disabled={isSpinning || hasSpun}
+                className={`w-full py-4 rounded-lg font-bold text-lg transition-all transform ${
+                  isSpinning || hasSpun
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-pink-500 to-purple-600 text-white hover:from-pink-600 hover:to-purple-700 hover:scale-105'
+                }`}
+              >
+                {isSpinning ? (
+                  <span className="flex items-center justify-center">
+                    <span className="mr-2"><RotateCw /></span>
+                    Spinning...
+                  </span>
+                ) : hasSpun ? (
+                  'Already Spun'
+                ) : (
+                  'SPIN THE WHEEL!'
+                )}
+              </button>
+            )}
+
+            {result && (
+              <div className="mt-6 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-2xl p-6 text-center">
+                <h2 className="text-2xl font-bold text-white mb-4">🎊 Congratulations! 🎊</h2>
+                <div className="bg-white rounded-xl p-4 mb-4">
+                  <p className="text-3xl font-bold text-gray-800 mb-2">{result.prize}</p>
+                  <p className="text-sm text-gray-600 mb-2">Your Coupon Code:</p>
+                  <p className="text-2xl font-mono font-bold text-pink-600 bg-pink-100 py-2 px-4 rounded-lg inline-block">
+                    {result.coupon}
+                  </p>
+                </div>
+                <button
+                  onClick={sendWhatsApp}
+                  className="w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-lg font-bold text-lg transition-all transform hover:scale-105 flex items-center justify-center"
+                >
+                  <span className="mr-2"><Send /></span>
+                  Send to WhatsApp
+                </button>
+              </div>
+            )}
+
+            {hasSpun && (
+              <p className="text-center text-gray-600 mt-4 text-sm">
+                You've used your spin. Thank you for playing! 🎮
+              </p>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    ReactDOM.render(<SpinWheel />, document.getElementById('root'));
+  </script>
+</body>
+</html>
